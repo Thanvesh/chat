@@ -3,16 +3,25 @@ const cors = require("cors");
 const mongoose = require("mongoose");
 const bcrypt = require("bcrypt");
 const socket = require("socket.io");
+const axios = require("axios");
+const multer = require("multer");
+
+
 
 const app = express();
-const PORT = process.env.PORT || 5000;
+const PORT = 5000;
 
 app.use(cors());
 app.use(express.json());
 
-mongoose.connect(process.env.MONGO_URL || "mongodb://localhost:27017/Thanvesh", { useNewUrlParser: true, useUnifiedTopology: true })
-  .then(() => console.log("DB Connection Successful"))
+mongoose.connect("mongodb+srv://nanicherry2312:r2XeMPVLjrBHiAJL@cluster0.kjaqps5.mongodb.net/?retryWrites=true&w=majority", { useNewUrlParser: true, useUnifiedTopology: true })
+  .then(() => {
+    console.log("DB Connection Successful")
+
+  } )
   .catch(err => console.error("Error connecting to database:", err.message));
+
+
 
 const Message = mongoose.model("Message", mongoose.Schema({
   message: { text: { type: String, required: true } },
@@ -59,6 +68,34 @@ app.post("/api/auth/register", async (req, res, next) => {
   }
 });
 
+
+const storage = multer.diskStorage({
+    destination: (req, file, cb) => {
+      cb(null, "uploads/avatars"); // Specify the directory where avatar images will be stored
+    },
+    filename: (req, file, cb) => {
+      cb(null, `${Date.now()}${path.extname(file.originalname)}`); // Rename the file to avoid conflicts
+    },
+  });
+  
+  const upload = multer({ storage });
+  
+  app.post("/api/auth/setavatar/:id", upload.single("avatar"), async (req, res, next) => {
+    try {
+      const userId = req.params.id;
+      const imagePath = req.file.path; // Get the path to the uploaded image
+  
+      // Update user document in the database with the path to the uploaded image
+      const user = await User.findByIdAndUpdate(userId, { isAvatarImageSet: true, avatarImage: imagePath }, { new: true });
+  
+      res.json({ isSet: true, image: imagePath,user});
+    } catch (error) {
+      console.error("Error setting avatar:", error);
+      res.status(500).json({ msg: "Server error" });
+    }
+  });
+  
+
 app.get("/api/auth/allusers/:id", async (req, res, next) => {
   try {
     const users = await User.find({ _id: { $ne: req.params.id } }).select(["email", "username", "avatarImage", "_id"]);
@@ -71,9 +108,10 @@ app.get("/api/auth/allusers/:id", async (req, res, next) => {
 app.post("/api/auth/setavatar/:id", async (req, res, next) => {
   try {
     const userId = req.params.id;
-    const avatarImage = req.body.image;
-    const userData = await User.findByIdAndUpdate(userId, { isAvatarImageSet: true, avatarImage }, { new: true });
-    return res.json({ isSet: userData.isAvatarImageSet, image: userData.avatarImage });
+    const base64Image = req.body.image;
+    const buffer = Buffer.from(base64Image, "base64");
+    const userData = await User.findByIdAndUpdate(userId, { isAvatarImageSet: true, buffer }, { new: true });
+    return res.json({ isSet: userData.isAvatarImageSet, image: userData.buffer });
   } catch (ex) {
     next(ex);
   }
@@ -111,6 +149,42 @@ app.post("/api/messages/getmsg", async (req, res, next) => {
     next(ex);
   }
 });
+
+app.get("/api/auth/profile/:id", async (req, res) => {
+    try {
+      const userId = req.params.id;
+      // Find the user by ID
+      const user = await User.findById(userId);
+      if (!user) {
+        return res.status(404).json({ msg: "User not found" });
+      }
+      // Exclude sensitive information like password
+      const { password, ...profileData } = user.toObject();
+      res.json(profileData);
+    } catch (error) {
+      console.error("Error fetching profile:", error);
+      res.status(500).json({ msg: "Server error" });
+    }
+  });
+
+
+app.put("/api/auth/updateprofile/:id", async (req, res) => {
+    try {
+      const userId = req.params.id;
+      const updatedProfile = req.body;
+  
+      // Update user document in the database with the updated profile data
+      const user = await User.findByIdAndUpdate(userId, updatedProfile, { new: true });
+  
+      // Optionally, you can remove sensitive information (e.g., password) before sending the updated user object back to the client
+      delete user.password;
+  
+      res.json({ status: true, user });
+    } catch (error) {
+      console.error("Error updating profile:", error);
+      res.status(500).json({ msg: "Server error" });
+    }
+  });
 
 const server = app.listen(PORT, () => console.log(`Server started on port ${PORT}`));
 

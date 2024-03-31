@@ -1,5 +1,67 @@
+import React, { useState, useRef } from "react";
+import { BsEmojiSmileFill } from "react-icons/bs";
+import { IoMdSend } from "react-icons/io";
 import styled from "styled-components";
+import Picker from "emoji-picker-react";
 
+export default function ChatInput({ handleSendMsg }) {
+  const [msg, setMsg] = useState("");
+  const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const inputRef = useRef();
+
+  const handleEmojiPickerHideShow = () => {
+    setShowEmojiPicker(!showEmojiPicker);
+  };
+
+  const handleEmojiClick = (event, emojiObject) => {
+    const startPosition = inputRef.current.selectionStart;
+    const endPosition = inputRef.current.selectionEnd;
+    const newMessage =
+      msg.substring(0, startPosition) +
+      emojiObject.emoji +
+      msg.substring(endPosition, msg.length);
+    setMsg(newMessage);
+    inputRef.current.focus();
+    inputRef.current.setSelectionRange(startPosition + 2, startPosition + 2);
+  };
+
+  const sendChat = (event) => {
+    event.preventDefault();
+    if (msg.trim().length > 0) {
+      handleSendMsg(msg.trim());
+      setMsg("");
+    }
+  };
+
+  return (
+    <Container>
+      <div className="button-container">
+        <div className="emoji">
+          <BsEmojiSmileFill onClick={handleEmojiPickerHideShow} />
+          {showEmojiPicker && (
+            <Picker
+              onEmojiClick={handleEmojiClick}
+              disableAutoFocus={true}
+              pickerStyle={{ position: "absolute", bottom: "35px", right: "10px" }}
+            />
+          )}
+        </div>
+      </div>
+      <form className="input-container" onSubmit={sendChat}>
+        <input
+          type="text"
+          placeholder="Type your message here..."
+          onChange={(e) => setMsg(e.target.value)}
+          value={msg}
+          ref={inputRef}
+        />
+        <button type="submit">
+          <IoMdSend />
+        </button>
+      </form>
+    </Container>
+  );
+}
 
 const Container = styled.div`
   display: grid;
@@ -95,5 +157,3 @@ const Container = styled.div`
     }
   }
 `;
-
-export default Container
